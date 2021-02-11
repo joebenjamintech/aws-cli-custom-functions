@@ -1,0 +1,61 @@
+# !/bin/bash
+#
+# script creation - 02/10/2021-20:15 
+
+getresourcedata() {
+  # set the options for all the flags
+  while getopts r:w:s:t:n: flag
+  do
+      case "${flag}" in
+          r) local resource=${OPTARG};;
+          w) local where=${OPTARG};;
+          s) local select=${OPTARG};;
+          t) local test=${OPTARG};;
+          n) local name=${OPTARG};;
+      esac
+  done
+
+  check_for_jmespath || return 1
+  abort_if_not_exists "resource name" "$resource" || return 1
+
+  local results=$(getresourcebyname $resource $name)
+
+  if [[ -n "$where" ]] && [[ -n "$test" ]]; then
+    # will make a query to compare a string or boolean depending on what test is passed in
+    if [[ "$test" == "true" ]] || [[ "$test" == "false" ]]; then
+      if [[ "$test" == "false" ]]; then
+        local not=!
+      fi
+      results=$(echo $results | jp "@[?$not$where][]")
+    else
+      results=$(echo $results | jp "@[?contains($where,'$test')][]")
+    fi
+  fi
+
+  has_results $results || return 1
+
+  # creating the where part of the query if where exists
+  if [[ -n "$where" ]]; then
+    local wherequery="$where:$where,"
+  fi
+
+  if [[ -n "$select" ]]; then
+    #the query will now include the where and the select but only if select exists
+    result=$(echo $results | jp "@[].[{$wherequery$select:$select,Name:(Tags[?Key=='Name'])[0].Value}][]")
+    #getting the select prop value to copy to the clipboard
+    propvalue=$(echo $result | jp "@[0].$select")
+
+    is_empty $propvalue || return 1
+    echo $result
+    copy_format_to_clipboard "$propvalue" "copied $select value [@@] to clipboard" 2> /dev/null
+  else
+    #if we get here, we do not have a select but if we have a where prop, will copy it to clipboard
+    if [[ ! -z "$where" ]]; then
+      local propvalue=$(echo $result | jp "@[0].$where")
+      echo $results
+      copy_format_to_clipboard "$propvalue" "copied $where value [@@] to clipboard" 2> /dev/null
+    else
+      echo $results
+    fi
+  fi
+}
