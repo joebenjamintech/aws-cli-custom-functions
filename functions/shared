@@ -1,0 +1,109 @@
+# !/bin/bash
+#
+# script creation - 02/07/2021-16:00 
+
+abort_if_not_exists() {
+  key_name=$1
+  value=$2
+  if [[ -z "$value" ]]; then
+    echo "Aborting: 1 $key_name argument is required."; return 1
+  fi
+}
+
+check_for_jmespath() {
+  if ! type jp > /dev/null; then
+    echo "you need to install jmespath to run these commands"
+    echo "https://github.com/jmespath/jp"
+    return 1
+  fi
+}
+
+copy_format_to_clipboard() {
+  value=$1
+  message=$2
+
+  #using % for the sed separator b/c ip address uses /
+  echo $(echo $message | sed "s%@@%$value%")
+  echo $value | xclip -sel clip
+}
+
+has_results() {
+  count=$(echo $1 | jp "length(@)")
+
+  if [ $count -eq 0 ]; then
+    echo "no results"
+    return 1;
+  fi
+}
+
+is_empty() {
+  if [[ -z "$1" ]] || [[ $1 == "null" ]]; then
+    echo "no results"
+    return 1;
+  fi
+}
+
+getresourcebyname() {
+  abort_if_not_exists "resource name" $1 || return 1
+
+  local resource=$1
+  local contains=$2
+
+  describe_name=$(echo $1 | tolower)
+  main_prop=$(echo $1 | sed 's/-//g')
+
+  if [[ -z "$contains" ]]; then
+    aws ec2 describe-$describe_name \
+      --query $main_prop"[]"
+  else
+    aws ec2 describe-$describe_name \
+      --query $main_prop"[?Tags[?Key=='Name'&&contains(Value,'$contains')]]"
+  fi
+}
+
+getresourcedata() {
+  while getopts r:w:s:t:n: flag
+  do
+      case "${flag}" in
+          r) local resource=${OPTARG};;
+          w) local where=${OPTARG};;
+          s) local select=${OPTARG};;
+          t) local test=${OPTARG};;
+          n) local name=${OPTARG};;
+      esac
+  done
+
+  check_for_jmespath || return 1
+  abort_if_not_exists "resource name" "$resource" || return 1
+
+  local results=$(getresourcebyname $resource $name)
+
+  if [[ ! -z "$where" ]] && [[ ! -z "$test" ]]; then
+    if [[ "$test" == "true" ]] || [[ "$test" == "false" ]]; then
+      if [[ "$test" == "false" ]]; then
+        local not=!
+      fi
+      results=$(echo $results | jp "@[?$not$where][]")
+    else
+      results=$(echo $results | jp "@[?contains($where,'$test')][]")
+    fi
+  fi
+
+  has_results $results || return 1
+
+  if [[ ! -z "$where" ]]; then
+    local wherequery="$where:$where,"
+  fi
+
+  if [[ ! -z "$select" ]]; then
+    result=$(echo $results | jp "@[].[{$wherequery$select:$select,Name:(Tags[?Key=='Name'])[0].Value}][]")
+    propvalue=$(echo $result | jp "@[0].$select")
+
+    is_empty $propvalue || return 1
+    echo $result
+    copy_format_to_clipboard "$propvalue" "copied @@ to clipboard" 2> /dev/null
+  else
+    echo $results
+  fi
+}
+
