@@ -2,23 +2,122 @@
 #
 # script creation - 02/10/2021-20:15 
 
-getresourcedata() {
+validateparams () {
+  local resource=$1
+  local service=$2
+  local where=$3
+  local test=$4
+
+  check_for_jmespath || return 1
+  abort_if_not_exists "| -r resource name" "$resource" || return 1
+  abort_if_not_exists "| -s service name" "$service" || return 1
+  
+  if [[ -n "$where" ]] || [[ -n "$test" ]]; then
+    abort_if_not_exists "| -w where name" "$where" || return 1
+    abort_if_not_exists "| -t test name" "$test" || return 1
+  fi
+}
+
+ec2deletetags() {
+  while getopts r:t: flag
+  do
+      case "${flag}" in
+          r) local resourceids=${OPTARG};;
+          t) local tags=${OPTARG};;
+      esac
+  done
+
+  ec2managetags $resourceids $tags "delete"
+}
+
+ec2createtags() {
+  while getopts r:t: flag
+  do
+      case "${flag}" in
+          r) local resourceids=${OPTARG};;
+          t) local tags=${OPTARG};;
+      esac
+  done
+
+  ec2managetags $resourceids $tags "create"
+}
+
+ec2managetags() {
+  resourceids=$1
+  tags=$2
+  manipulation_type=$3
+
+  if [[ $manipulation_type != "create" ]] && [[ $manipulation_type != "delete" ]]; then
+    echo "can only create or delete, if not passed, will cancel"
+    return 1;
+  fi
+
+  IFS=','
+
+  echo $tags | read -A tags
+  local totaltags=${#tags[@]}
+
+  IFS='|'
+  alltags=""
+  for i in {1..$totaltags}
+  do
+    if [[ "$tags[$i]" != *"|"* ]]; then
+      if [[ "$manipulation_type" == "delete" ]]; then
+        #we will only set if delete, if create, skip b/c value was not sent
+        key=$(echo "$tag[1]" | sed 's/ //g')
+        alltags=$alltags"Key=$key "
+      fi
+    else
+      echo $tags[$i] | read -A tag
+      key=$(echo "$tag[1]" | sed 's/ //g')
+      value=$(echo "$tag[2]" | sed 's/ //g')
+      alltags=$alltags"Key=$key,Value=$value "
+    fi
+  done
+
+  # was having an issue trying to run this command w/o eval,
+  # was blowing up
+  if [[ -n "$alltags" ]]; then
+    eval aws ec2 $manipulation_type-tags --resources "$resourceids" --tags "$alltags"
+  else
+    echo "no tags to set"
+  fi
+}
+
+ec2getdata() {
   # set the options for all the flags
-  while getopts r:w:s:t:n: flag
+  while getopts r:w:t:n:p: flag
   do
       case "${flag}" in
           r) local resource=${OPTARG};;
           w) local where=${OPTARG};;
-          s) local select=${OPTARG};;
           t) local test=${OPTARG};;
           n) local name=${OPTARG};;
+          p) local pick=${OPTARG};;
       esac
   done
 
-  check_for_jmespath || return 1
-  abort_if_not_exists "resource name" "$resource" || return 1
+  resourcegetdata -s ec2 -r "$resource" -w "$where" -t "$test" -n "$name" -p "$pick"
 
-  local results=$(getresourcebyname $resource $name)
+}
+
+resourcegetdata() {
+  # set the options for all the flags
+  while getopts r:w:s:t:n:p: flag
+  do
+      case "${flag}" in
+          r) local resource=${OPTARG};;
+          w) local where=${OPTARG};;
+          s) local service=${OPTARG};;
+          t) local test=${OPTARG};;
+          n) local name=${OPTARG};;
+          p) local pick=${OPTARG};;
+      esac
+  done
+
+  validateparams "$resource" "$service" "$where" "$test" || return 1
+
+  local results=$(getresourcebyname $service $resource $name)
 
   if [[ -n "$where" ]] && [[ -n "$test" ]]; then
     # will make a query to compare a string or boolean depending on what test is passed in
@@ -39,19 +138,19 @@ getresourcedata() {
     local wherequery="$where:$where,"
   fi
 
-  if [[ -n "$select" ]]; then
-    #the query will now include the where and the select but only if select exists
-    result=$(echo $results | jp "@[].[{$wherequery$select:$select,Name:(Tags[?Key=='Name'])[0].Value}][]")
-    #getting the select prop value to copy to the clipboard
-    propvalue=$(echo $result | jp "@[0].$select")
+  if [[ -n "$pick" ]]; then
+    #the query will now include the where and the pick but only if pick exists
+    results=$(echo $results | jp "@[].[{$wherequery$pick:$pick,Name:(Tags[?Key=='Name'])[0].Value}][]")
+    #getting the pick prop value to copy to the clipboard
+    propvalue=$(echo $results | jp "@[0].$pick")
 
     is_empty $propvalue || return 1
-    echo $result
-    copy_format_to_clipboard "$propvalue" "copied $select value [@@] to clipboard" 2> /dev/null
+    echo $results
+    copy_format_to_clipboard "$propvalue" "copied $pick value [@@] to clipboard" 2> /dev/null
   else
-    #if we get here, we do not have a select but if we have a where prop, will copy it to clipboard
-    if [[ ! -z "$where" ]]; then
-      local propvalue=$(echo $result | jp "@[0].$where")
+    #if we get here, we do not have a pick but if we have a where prop, will copy it to clipboard
+    if [[ -n "$where" ]]; then
+      local propvalue=$(echo $results | jp "@[0].$where")
       echo $results
       copy_format_to_clipboard "$propvalue" "copied $where value [@@] to clipboard" 2> /dev/null
     else

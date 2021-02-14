@@ -44,13 +44,15 @@ is_empty() {
 }
 
 getresourcebyname() {
-  abort_if_not_exists "resource name" $1 || return 1
+  abort_if_not_exists "service name" $1 || return 1
+  abort_if_not_exists "resource name" $2 || return 1
+  
+  local service=$1
+  local resource=$2
+  local contains=$3
 
-  local resource=$1
-  local contains=$2
-
-  local describe_name=$(echo $1 | tolower)
-  local main_prop=$(echo $1 | sed 's/-//g')
+  local describe_name=$(echo $resource | tolower)
+  local main_prop=$(echo $resource | sed 's/-//g')
 
   # added this b/c Instances maps differently from others
   # most map this way -> resource = SecurityGroups, then main prop will be SecurityGroups
@@ -60,10 +62,10 @@ getresourcebyname() {
 
 
   if [[ -z "$contains" ]]; then
-    aws ec2 describe-$describe_name \
+    aws $service describe-$describe_name \
       --query $main_prop"[]"
   else
-    aws ec2 describe-$describe_name \
+    aws $service describe-$describe_name \
       --query $main_prop"[?Tags[?Key=='Name'&&contains(Value,'$contains')]]"
   fi
 }
