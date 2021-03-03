@@ -10,10 +10,10 @@
 #
 # dotnet-build-package-sln
 # use this function to build and package dotnet solutions
+# first package directory with sln
 # must be in the directory of the sln 
-# script will loop through subdirectories where csproj files exists
-# will build and package those directories
-# after, go back to sln directory and build that one as well
+# script will loop through subdirectories where aws-lambda-tools-default.json files exists
+# will package those directories
 # wip
 #
 dotnet-build-package-sln(){
