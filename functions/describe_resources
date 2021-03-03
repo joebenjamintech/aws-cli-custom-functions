@@ -135,18 +135,24 @@ resourcegetdata() {
 
   # creating the where part of the query if where exists
   if [[ -n "$where" ]]; then
-    local wherequery="$where:$where,"
+    local whereprop=$(echo "$where" | sed 's/[^a-zA-Z]//g')
+    local wherequery="$whereprop:$where,"
   fi
 
   if [[ -n "$pick" ]]; then
+    #gets the prop but strips all non alphabets so the prop does not fail with non alpha characters
+    #example Attachment[].Vpc will be AttachmentVpc
+    local pickprop=$(echo "$pick" | sed 's/[^a-zA-Z]//g')
+    echo $pickprop
+
     #the query will now include the where and the pick but only if pick exists
-    results=$(echo $results | jp "@[].[{$wherequery$pick:$pick,Name:(Tags[?Key=='Name'])[0].Value}][]")
+    results=$(echo $results | jp "@[].[{"$wherequery""$pickprop":$pick,Name:(Tags[?Key=='Name'])[0].Value}][]")
     #getting the pick prop value to copy to the clipboard
-    propvalue=$(echo $results | jp "@[0].$pick")
+    propvalue=$(echo $results | jp "@[0].$pickprop")
 
     is_empty $propvalue || return 1
     echo $results
-    copy_format_to_clipboard "$propvalue" "copied $pick value [@@] to clipboard" 2> /dev/null
+    copy_format_to_clipboard "$propvalue" "copied $pick value '@@' to clipboard" 2> /dev/null
   else
     #if we get here, we do not have a pick but if we have a where prop, will copy it to clipboard
     if [[ -n "$where" ]]; then
