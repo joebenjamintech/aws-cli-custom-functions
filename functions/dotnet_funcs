@@ -1,0 +1,41 @@
+#!/bin/bash
+#Author: Joe Benjamin
+
+
+
+
+
+
+
+#
+# dotnet-build-package-sln
+# use this function to build and package dotnet solutions
+# must be in the directory of the sln 
+# script will loop through subdirectories where csproj files exists
+# will build and package those directories
+# after, go back to sln directory and build that one as well
+# wip
+#
+dotnet-build-package-sln(){
+  local MESSAGECOLOR='\033[0;32m'
+  local RESET='\033[0m'
+  if ls *.sln 2> /dev/null; then
+    currdir=$(pwd)
+    find . -name "*.csproj" |
+    for file in $(cat); do
+      local dir=$(dirname $file)
+      echo -e "${MESSAGECOLOR} changing directory: cd $dir ${RESET}"
+      cd $dir
+      echo -e "${MESSAGECOLOR} building directory $dir: dotnet build ${RESET}"
+      dotnet build
+      echo -e "${MESSAGECOLOR} packaging directory $dir: dotnet lambda package ${RESET}"
+      dotnet lambda package
+    done
+    echo -e "${MESSAGECOLOR} changing directory: cd $currdir ${RESET}"
+    cd $currdir
+    echo -e "${MESSAGECOLOR} building directory $currdir: dotnet build ${RESET}"
+    dotnet build
+  else
+    echo "go to root of sln folder and run again"
+  fi
+}
