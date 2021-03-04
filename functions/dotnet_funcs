@@ -27,8 +27,6 @@ dotnet-build-package-sln(){
       esac
   done
 
-  config=$()
-
   if [[ -z "$config" ]]; then
     config=Debug
   fi
@@ -48,8 +46,6 @@ dotnet-build-package-sln(){
       dotnet lambda package -c $config
       cd $maindir
     done
-    echo -e "${MESSAGECOLOR} changing directory: cd $maindir ${RESET}"
-    cd $maindir
   else
     echo "go to root of sln folder and run again"
   fi
