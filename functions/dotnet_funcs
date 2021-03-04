@@ -9,6 +9,8 @@
 
 #
 # dotnet-build-package-sln
+# can pass and config option -c 
+# ex. dotnet-build-package-sln -c Release ==> will build in the Release folder
 # use this function to build and package dotnet solutions
 # first package directory with sln
 # must be in the directory of the sln 
@@ -17,22 +19,37 @@
 # wip
 #
 dotnet-build-package-sln(){
+
+  while getopts c: flag
+  do
+      case "${flag}" in
+          c) local config=${OPTARG};;
+      esac
+  done
+
+  config=$()
+
+  if [[ -z "$config" ]]; then
+    config=Debug
+  fi
+
   local MESSAGECOLOR='\033[0;32m'
   local RESET='\033[0m'
   if ls *.sln 2> /dev/null; then
-    echo -e "${MESSAGECOLOR} building directory $dir: dotnet build ${RESET}"
-    dotnet build
-    currdir=$(pwd)
+    maindir=$(pwd)
+    echo -e "${MESSAGECOLOR} building directory $maindir: dotnet build -c $config ${RESET}"
+    dotnet build -c $config
     find . -name "aws-lambda-tools-defaults.json" |
     for file in $(cat); do
       local dir=$(dirname $file)
       echo -e "${MESSAGECOLOR} changing directory: cd $dir ${RESET}"
       cd $dir
-      echo -e "${MESSAGECOLOR} packaging directory $dir: dotnet lambda package ${RESET}"
-      dotnet lambda package
+      echo -e "${MESSAGECOLOR} packaging directory $dir: dotnet lambda package -c $config ${RESET}"
+      dotnet lambda package -c $config
+      cd $maindir
     done
-    echo -e "${MESSAGECOLOR} changing directory: cd $currdir ${RESET}"
-    cd $currdir
+    echo -e "${MESSAGECOLOR} changing directory: cd $maindir ${RESET}"
+    cd $maindir
   else
     echo "go to root of sln folder and run again"
   fi
