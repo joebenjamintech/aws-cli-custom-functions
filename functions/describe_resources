@@ -145,22 +145,29 @@ resourcegetdata() {
     local pickprop=$(echo "$pick" | sed 's/[^a-zA-Z]//g')
     echo $pickprop
 
+    #checking if we have tags, if so include them in the results else dont
+    #i'm sure there is a better way of doing this but for now leaving as is
+    tagsCount=$(echo $results | jp "length(@[].Tags[])")
     #the query will now include the where and the pick but only if pick exists
-    results=$(echo $results | jp "@[].[{"$wherequery""$pickprop":$pick,Name:(Tags[?Key=='Name'])[0].Value}][]")
+    if [[ $tagsCount -ge 1 ]]; then
+      results=$(echo $results | jp "@[].[{"$wherequery""$pickprop":$pick,Name:Tags}][]")
+    else 
+      results=$(echo $results | jp "@[].[{"$wherequery""$pickprop":$pick}][]")
+    fi
     #getting the pick prop value to copy to the clipboard
     propvalue=$(echo $results | jp "@[0].$pickprop")
 
     is_empty $propvalue || return 1
-    echo $results
+    echo $results | less
     copy_format_to_clipboard "$propvalue" "copied $pick value '@@' to clipboard" 2> /dev/null
   else
     #if we get here, we do not have a pick but if we have a where prop, will copy it to clipboard
     if [[ -n "$where" ]]; then
       local propvalue=$(echo $results | jp "@[0].$where")
-      echo $results
+      echo $results | less
       copy_format_to_clipboard "$propvalue" "copied $where value [@@] to clipboard" 2> /dev/null
     else
-      echo $results
+      echo $results | less
     fi
   fi
 }

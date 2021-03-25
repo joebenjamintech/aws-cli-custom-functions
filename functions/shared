@@ -63,10 +63,15 @@ getresourcebyname() {
 
   if [[ -z "$contains" ]]; then
     aws $service describe-$describe_name \
-      --query $main_prop"[]"
+      --query $main_prop"[]" 2> /dev/null || \
+    aws $service list-$describe_name \
+      --query $main_prop"[]" 2> /dev/null
+
   else
     aws $service describe-$describe_name \
-      --query $main_prop"[?Tags[?Key=='Name'&&contains(Value,'$contains')]]"
+      --query $main_prop"[?Tags[?Key=='Name'&&contains(Value,'$contains')]]" 2> /dev/null || \
+    aws $service list-$describe_name \
+      --query $main_prop"[?Tags[?Key=='Name'&&contains(Value,'$contains')]]" 2> /dev/null
   fi
 }
 
